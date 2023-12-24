@@ -1,16 +1,14 @@
 package user
 
 import (
-	"encoding/json"
-	"net/http"
-	"strconv"
+	"context"
+	"errors"
 
-	"github.com/gorilla/mux"
-	"github.com/joaquinxtomas/gocourse_meta/meta"
+	"github.com/gocourse_user/pkg/meta"
 )
 
 type (
-	Controller func(w http.ResponseWriter, r *http.Request)
+	Controller func(ctx context.Context, request interface{}) (response interface{}, err error)
 	Endpoints  struct {
 		Create Controller
 		Get    Controller
@@ -39,58 +37,49 @@ type (
 		Err    string      `json:"error,omitempty"`
 		Meta   *meta.Meta  `json:"meta,omitempty"`
 	}
+
+	Config struct {
+		LimPageDef string
+	}
 )
 
-func MakeEndpoints(s Service) Endpoints {
+func MakeEndpoints(s Service, config Config) Endpoints {
 	return Endpoints{
 		Create: makeCreateEndpoint(s),
-		Get:    makeGetEndpoint(s),
-		GetAll: makeGetAllEndpoint(s),
+		/*Get:    makeGetEndpoint(s),
+		GetAll: makeGetAllEndpoint(s, config),
 		Update: makeUpdateEndpoint(s),
-		Delete: makeDeleteEndpoint(s),
+		Delete: makeDeleteEndpoint(s),*/
 	}
 }
 
 func makeCreateEndpoint(s Service) Controller {
-	return func(w http.ResponseWriter, r *http.Request) {
+	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 
-		var req CreateReq
-
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			w.WriteHeader(400)
-			json.NewEncoder(w).Encode(&Response{Status: 400, Err: "invalid request format"})
-			return
-		}
+		req := request.(CreateReq)
 
 		if req.FirstName == "" {
-			w.WriteHeader(400)
-			json.NewEncoder(w).Encode(&Response{Status: 400, Err: "first name is required"})
-			return
+			return nil, errors.New("first name is required")
 		}
 		if req.LastName == "" {
-			w.WriteHeader(400)
-			json.NewEncoder(w).Encode(&Response{Status: 400, Err: "last name is required"})
-			return
+			return nil, errors.New("last name is required")
 		}
 
 		if req.Email == "" {
-			w.WriteHeader(400)
-			json.NewEncoder(w).Encode(&Response{Status: 400, Err: "email is required"})
-			return
+			return nil, errors.New("email is required")
 		}
 
-		user, err1 := s.Create(req.FirstName, req.LastName, req.Email, req.Phone)
+		user, err1 := s.Create(ctx, req.FirstName, req.LastName, req.Email, req.Phone)
 
 		if err1 != nil {
-			w.WriteHeader(400)
-			json.NewEncoder(w).Encode(&Response{Status: 400, Err: err1.Error()})
-			return
+			return nil, errors.New(err1.Error())
 		}
 
-		json.NewEncoder(w).Encode(&Response{Status: 200, Data: user})
+		return user, nil
 	}
 }
 
+/*
 func makeDeleteEndpoint(s Service) Controller {
 	return func(w http.ResponseWriter, r *http.Request) {
 		path := mux.Vars(r)
@@ -155,7 +144,7 @@ func makeGetEndpoint(s Service) Controller {
 	}
 }
 
-func makeGetAllEndpoint(s Service) Controller {
+func makeGetAllEndpoint(s Service, config Config) Controller {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		v := r.URL.Query()
@@ -176,7 +165,7 @@ func makeGetAllEndpoint(s Service) Controller {
 			return
 		}
 
-		meta, err := meta.New(page, limit, count)
+		meta, err := meta.New(page, limit, count, config.LimPageDef)
 
 		if err != nil {
 			w.WriteHeader(500)
@@ -194,4 +183,4 @@ func makeGetAllEndpoint(s Service) Controller {
 		json.NewEncoder(w).Encode(&Response{Status: 200, Data: users, Meta: meta})
 
 	}
-}
+}*/
